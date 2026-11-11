@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">`
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashLock | OS & DBMS Flash-Sale System</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <h1>⚡ FlashLock</h1>
+            <span class="subtitle">OS Concurrency & DBMS Flash-Sale Control Engine</span>
+        </div>
+        <div class="team-badge">Team CodeSense | PBL Project</div>
+    </header>
+
+    <main class="container">
+        <section class="card">
+            <h2>📦 Live Product Inventory</h2>
+            <div id="products-grid" class="products-grid">
+                <p class="loading">Loading products from PostgreSQL...</p>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>🛒 Recent Transactions & Status</h2>
+            <div id="purchase-result" class="result-banner hidden"></div>
+        </section>
+
+        <section class="card simulation-card">
+            <h2>🚀 OS Scheduling & Load Simulation Panel</h2>
+            <form id="sim-form" class="sim-grid">
+                <div class="form-group">
+                    <label>Total Requests</label>
+                    <input type="number" id="sim-requests" value="1000" min="10" max="5000">
+                </div>
+                <div class="form-group">
+                    <label>Worker Threads</label>
+                    <input type="number" id="sim-workers" value="10" min="1" max="32">
+                </div>
+                <div class="form-group">
+                    <label>Queue Capacity</label>
+                    <input type="number" id="sim-capacity" value="128" min="16" max="512">
+                </div>
+                <div class="form-group">
+                    <label>Scheduling Policy</label>
+                    <select id="sim-policy">
+                        <option value="PRIORITY_AGING">Priority + Aging (Starvation Prevention)</option>
+                        <option value="PRIORITY">Pure Priority Scheduling</option>
+                        <option value="FIFO">First-In-First-Out (FIFO)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Aging Interval (ms)</label>
+                    <input type="number" id="sim-aging" value="5000" step="500">
+                </div>
+                <button type="submit" id="start-sim-btn" class="btn btn-primary">Start 1000-Request Benchmark</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>📊 C Engine Live Metrics</h2>
+            <div class="metrics-grid">
+                <div class="metric-box">
+                    <span class="metric-title">Submitted</span>
+                    <span id="metric-submitted" class="metric-value">0</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-title">Completed</span>
+                    <span id="metric-completed" class="metric-value">0</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-title">Success</span>
+                    <span id="metric-success" class="metric-value success-color">0</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-title">Rejected (Out of Stock)</span>
+                    <span id="metric-rejected" class="metric-value reject-color">0</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-title">Avg Wait Time</span>
+                    <span id="metric-avg-wait" class="metric-value">0.0 ms</span>
+                </div>
+                <div class="metric-box">
+                    <span class="metric-title">Max Wait Time</span>
+                    <span id="metric-max-wait" class="metric-value">0.0 ms</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

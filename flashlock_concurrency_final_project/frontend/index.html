@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FlashLock — Flash-Sale Concurrency &amp; Race-Condition Lab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header class="topbar">
+        <div class="topbar-inner">
+            <div class="brand">
+                <svg class="brand-mark" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+                <span class="brand-name">FlashLock</span>
+                <span class="brand-divider" aria-hidden="true">/</span>
+                <span class="brand-sub">Concurrency Lab</span>
+            </div>
+
+            <nav class="topnav" aria-label="Primary sections">
+                <a href="#catalog-section" class="nav-link">Catalog</a>
+                <a href="#lab-section" class="nav-link">Concurrency Lab</a>
+                <a href="#comparison-section" class="nav-link">Comparison</a>
+            </nav>
+
+            <div class="topbar-actions">
+                <span class="active-mode-pill" id="header-strategy-pill">
+                    Strategy: <strong>Atomic Update</strong>
+                </span>
+                <button type="button" id="reset-all-btn" class="btn btn-secondary btn-sm">
+                    Reset Catalog Stock
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <!-- Page Intro & Global Locking Strategy Selector -->
+        <section class="intro-bar" aria-labelledby="page-title">
+            <div class="intro-copy">
+                <h1 id="page-title">Flash-Sale Inventory &amp; Database Locking Benchmark</h1>
+            </div>
+
+            <div class="strategy-control-box" role="group" aria-label="Concurrency Strategy Selector">
+                <div class="control-label-row">
+                    <span class="control-label">Active Concurrency Strategy</span>
+                    <span class="control-value-tag" id="selected-strategy-label">Atomic Update</span>
+                </div>
+                <div class="segmented-control" id="global-strategy-selector">
+                    <button type="button" class="segment-btn active" data-strategy="ATOMIC" aria-pressed="true">
+                        Atomic
+                    </button>
+                    <button type="button" class="segment-btn" data-strategy="PESSIMISTIC" aria-pressed="false">
+                        Pessimistic
+                    </button>
+                    <button type="button" class="segment-btn" data-strategy="OPTIMISTIC" aria-pressed="false">
+                        Optimistic
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Transaction Feedback Region -->
+        <div id="purchase-feedback" class="feedback-banner hidden" role="status" aria-live="polite"></div>
+
+        <!-- Section 1: Flash-Sale Product Catalog -->
+        <section id="catalog-section" class="section-block" aria-labelledby="catalog-heading">
+            <div class="section-header">
+                <div>
+                    <h2 id="catalog-heading">Flash-Sale Product Catalog</h2>
+                    <p class="section-desc">Single-item checkouts execute through the active concurrency strategy selected above.</p>
+                </div>
+                <button type="button" id="refresh-products-btn" class="btn btn-tertiary btn-sm">
+                    Refresh Stock
+                </button>
+            </div>
+
+            <div id="products-grid" class="products-grid">
+                <div class="empty-state">Loading product inventory from PostgreSQL...</div>
+            </div>
+        </section>
+
+        <hr class="section-rule">
+
+        <!-- Section 2: Concurrency Laboratory & Burst Request Tester -->
+        <section id="lab-section" class="section-block" aria-labelledby="lab-heading">
+            <div class="section-header">
+                <div>
+                    <span class="eyebrow">CONCURRENCY LABORATORY</span>
+                    <h2 id="lab-heading">Burst Request Race-Condition Test</h2>
+                    <p class="section-desc">
+                        Dispatch parallel HTTP purchase requests simultaneously against a single product row to measure latency, conflicts, and zero-overselling enforcement.
+                    </p>
+                </div>
+            </div>
+
+            <div class="lab-workspace">
+                <!-- Left Column: Test Configuration -->
+                <div class="panel config-panel">
+                    <h3 class="panel-title">Test Configuration</h3>
+
+                    <form id="burst-form" class="config-form">
+                        <div class="field-group">
+                            <label for="burst-product">Target Product</label>
+                            <select id="burst-product" name="productId" required>
+                                <option value="">Loading products...</option>
+                            </select>
+                            <div class="field-inline-action">
+                                <span class="field-hint" id="burst-product-meta">Current stock: —</span>
+                                <button type="button" id="reset-target-100-btn" class="link-action">
+                                    Reset target stock to 100
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <label>Concurrency Strategy</label>
+                            <div class="segmented-control segmented-sm" id="lab-strategy-selector">
+                                <button type="button" class="segment-btn active" data-strategy="ATOMIC">Atomic</button>
+                                <button type="button" class="segment-btn" data-strategy="PESSIMISTIC">Pessimistic</button>
+                                <button type="button" class="segment-btn" data-strategy="OPTIMISTIC">Optimistic</button>
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <label>Scheduling Policy</label>
+                            <div class="segmented-control segmented-sm" id="lab-policy-selector">
+                                <button type="button" class="segment-btn" data-policy="FIFO" title="First In, First Out">FIFO</button>
+                                <button type="button" class="segment-btn" data-policy="PRIORITY">Priority</button>
+                                <button type="button" class="segment-btn active" data-policy="PRIORITY_AGING" title="Priority + Aging">Aging</button>
+                            </div>
+                        </div>
+
+                        <div class="field-group">
+                            <label for="burst-requests">Number of Requests</label>
+                            <div class="preset-row" role="group" aria-label="Request count presets">
+                                <button type="button" class="preset-chip" data-count="10">10</button>
+                                <button type="button" class="preset-chip" data-count="50">50</button>
+                                <button type="button" class="preset-chip" data-count="100">100</button>
+                                <button type="button" class="preset-chip" data-count="500">500</button>
+                                <button type="button" class="preset-chip active" data-count="1000">1,000</button>
+                                <button type="button" class="preset-chip" data-count="5000">5,000</button>
+                                <button type="button" class="preset-chip" data-count="10000">10,000</button>
+                            </div>
+                            <input type="number" id="burst-requests" name="requestCount" value="1000" min="1" max="20000" required>
+                        </div>
+
+                        <div class="field-row-2">
+                            <div class="field-group">
+                                <label for="burst-quantity">Quantity per Request</label>
+                                <input type="number" id="burst-quantity" name="quantity" value="1" min="1" max="50" required>
+                            </div>
+                            <div class="field-group">
+                                <label for="burst-concurrency">Parallel Workers</label>
+                                <input type="number" id="burst-concurrency" name="concurrency" value="40" min="1" max="100" required>
+                            </div>
+                        </div>
+
+                        <div class="field-row-2">
+                            <div class="field-group">
+                                <label for="burst-priority-mix">Priority Mix</label>
+                                <select id="burst-priority-mix" name="priorityMix">
+                                    <option value="mixed" selected>Mixed (High / Med / Normal)</option>
+                                    <option value="uniform">Uniform (all High)</option>
+                                </select>
+                            </div>
+                            <div class="field-group">
+                                <label for="burst-aging">Aging Interval (ms)</label>
+                                <input type="number" id="burst-aging" name="agingIntervalMs" value="500" min="1" max="600000" required>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" id="start-burst-btn" class="btn btn-primary btn-full">
+                                Start Burst Test
+                            </button>
+                            <button type="button" id="abort-burst-btn" class="btn btn-secondary hidden">
+                                Stop
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Right Column: Live Execution Progress & Results -->
+                <div class="panel results-panel">
+                    <div class="panel-header-row">
+                        <h3 class="panel-title">Burst Test Results</h3>
+                        <span class="mono-badge" id="result-strategy-badge">ATOMIC</span>
+                    </div>
+
+                    <!-- Live Progress Bar -->
+                    <div id="burst-progress-box" class="progress-container hidden" aria-live="polite">
+                        <div class="progress-top">
+                            <span class="progress-status" id="progress-status-text">Test Running...</span>
+                            <span class="mono-text" id="progress-percent">0%</span>
+                        </div>
+                        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-role">
+                            <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+                        </div>
+                        <div class="progress-sub">
+                            <span class="mono-text" id="progress-counts">Requests completed: 0 / 1000</span>
+                            <span class="mono-text" id="progress-live-tally">Success: 0 | Rejected: 0 | Conflicts: 0</span>
+                        </div>
+                    </div>
+
+                    <!-- Empty State before first run -->
+                    <div id="burst-empty-state" class="empty-results">
+                        <p class="empty-title">No burst test executed yet</p>
+                        <p class="empty-copy">
+                            Configure the request count and strategy on the left, then click <strong>Start Burst Test</strong> to fire concurrent requests against PostgreSQL.
+                        </p>
+                    </div>
+
+                    <!-- Actual Results Dashboard -->
+                    <div id="burst-results-content" class="hidden">
+                        <div class="metrics-summary-grid">
+                            <div class="stat-cell">
+                                <span class="stat-label">Requests</span>
+                                <span class="stat-value mono-text" id="res-total-requests">0</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Successful Purchases</span>
+                                <span class="stat-value mono-text text-success" id="res-success">0</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Failed (Out of Stock)</span>
+                                <span class="stat-value mono-text text-danger" id="res-failed">0</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Conflicts</span>
+                                <span class="stat-value mono-text text-warning" id="res-conflicts">0</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Total Time</span>
+                                <span class="stat-value mono-text" id="res-total-time">0 ms</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Avg Response Time</span>
+                                <span class="stat-value mono-text" id="res-avg-time">0 ms</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Throughput</span>
+                                <span class="stat-value mono-text" id="res-throughput">0 req/s</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Overselling</span>
+                                <span class="stat-value mono-text" id="res-overselling">NO</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Avg Queue Wait</span>
+                                <span class="stat-value mono-text" id="res-queue-avg">—</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Max Queue Wait</span>
+                                <span class="stat-value mono-text" id="res-queue-max">—</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">High Priority Wait</span>
+                                <span class="stat-value mono-text" id="res-queue-high">—</span>
+                            </div>
+                            <div class="stat-cell">
+                                <span class="stat-label">Normal Priority Wait</span>
+                                <span class="stat-value mono-text" id="res-queue-normal">—</span>
+                            </div>
+                        </div>
+
+                        <!-- Concurrency Safety Verification -->
+                        <div class="safety-box" id="safety-verification-box">
+                            <div class="safety-header">
+                                <span class="safety-title">Concurrency Safety Verification</span>
+                                <span class="safety-badge safety-pass" id="safety-status-badge">Overselling Detected: NO</span>
+                            </div>
+                            <div class="safety-grid">
+                                <div class="safety-item">
+                                    <span class="safety-label">Initial Stock</span>
+                                    <span class="safety-val mono-text" id="safe-initial-stock">—</span>
+                                </div>
+                                <div class="safety-item">
+                                    <span class="safety-label">Successful Units</span>
+                                    <span class="safety-val mono-text" id="safe-purchased-units">—</span>
+                                </div>
+                                <div class="safety-item">
+                                    <span class="safety-label">Final Database Stock</span>
+                                    <span class="safety-val mono-text" id="safe-final-stock">—</span>
+                                </div>
+                                <div class="safety-item">
+                                    <span class="safety-label">Constraint Status</span>
+                                    <span class="safety-val mono-text" id="safe-constraint-check">Stock Consistent</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Strategy Explanation -->
+                    <div class="explanation-box" id="strategy-explanation-box">
+                        <h4 class="explanation-heading">Why is this strategy faster or slower? — <span id="explain-strategy-name">Atomic Update</span></h4>
+                        <p id="explain-strategy-body">
+                            The database performs the stock check and stock decrement as one atomic SQL statement. This minimizes application-level coordination and avoids holding a row lock across a multi-step transaction, providing high throughput for single-row flash-sale updates.
+                        </p>
+                        <pre class="sql-preview"><code id="explain-strategy-sql">UPDATE products SET stock = stock - ?, version = version + 1 WHERE id = ? AND stock &gt;= ?;</code></pre>
+                        <p class="policy-note"><strong id="explain-policy-name">Priority + Aging</strong> — <span id="explain-policy-body"></span></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Strategy Comparison & Performance Graph -->
+        <section id="comparison-section" class="section-block" aria-labelledby="comparison-heading">
+            <div class="section-header">
+                <div>
+                    <h2 id="comparison-heading">Compare Concurrency Strategies</h2>
+                    <p class="section-desc">Side-by-side metrics populated from actual burst tests executed in this session.</p>
+                </div>
+                <div class="header-btn-group">
+                    <button type="button" id="run-again-btn" class="btn btn-secondary btn-sm" disabled>Run Again</button>
+                    <button type="button" id="clear-results-btn" class="btn btn-tertiary btn-sm">Clear Results</button>
+                </div>
+            </div>
+
+            <div class="comparison-layout">
+                <div class="panel table-panel">
+                    <div class="table-responsive">
+                        <table class="comparison-table">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Metric</th>
+                                    <th scope="col">
+                                        Atomic
+                                        <button type="button" class="table-run-btn" data-run-strategy="ATOMIC">Test</button>
+                                    </th>
+                                    <th scope="col">
+                                        Pessimistic
+                                        <button type="button" class="table-run-btn" data-run-strategy="PESSIMISTIC">Test</button>
+                                    </th>
+                                    <th scope="col">
+                                        Optimistic
+                                        <button type="button" class="table-run-btn" data-run-strategy="OPTIMISTIC">Test</button>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-tbody">
+                                <tr>
+                                    <th scope="row">Requests</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-requests">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-requests">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-requests">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Successful</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-success">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-success">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-success">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Out of Stock</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-failed">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-failed">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-failed">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Conflicts</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-conflicts">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-conflicts">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-conflicts">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Total Time</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-time">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-time">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-time">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Avg Latency</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-avg">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-avg">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-avg">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Throughput</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-throughput">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-throughput">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-throughput">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Scheduling</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-policy">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-policy">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-policy">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Avg Queue Wait</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-qwait">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-qwait">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-qwait">—</td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">Overselling</th>
+                                    <td class="mono-text" id="cmp-ATOMIC-oversell">—</td>
+                                    <td class="mono-text" id="cmp-PESSIMISTIC-oversell">—</td>
+                                    <td class="mono-text" id="cmp-OPTIMISTIC-oversell">—</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Observed Performance Note (Requirement 9) -->
+                    <div class="observed-note" id="observed-performance-box">
+                        <strong>Observed Performance:</strong>
+                        <span id="observed-performance-text">
+                            Run tests across the strategies to compare observed throughput and latency. Performance depends on database engine, hardware, network, request volume, initial stock, contention level, transaction duration, and connection pool size.
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Visual Performance Graph (Requirement 20) -->
+                <div class="panel chart-panel">
+                    <div class="panel-header-row">
+                        <h3 class="panel-title">Measured Throughput &amp; Response Time</h3>
+                        <span class="field-hint">Actual test data</span>
+                    </div>
+                    <div id="chart-container" class="chart-wrapper">
+                        <div class="empty-chart" id="chart-empty-state">
+                            Execute at least one burst test to render measured throughput (req/s) and total execution time (ms).
+                        </div>
+                        <div id="chart-bars-area" class="chart-bars-area hidden"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Session Test History (Requirement 11) -->
+            <div class="history-block">
+                <div class="history-header">
+                    <h3>Test History</h3>
+                    <span class="field-hint" id="history-count-label">0 runs recorded</span>
+                </div>
+                <div id="test-history-list" class="history-list">
+                    <div class="history-empty">No completed benchmark runs in this session.</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <span>FlashLock — Database Concurrency &amp; OS Synchronization Project</span>
+            <span class="mono-text">PostgreSQL + Spring Boot + C POSIX Worker Engine</span>
+        </div>
+    </footer>
+
+    <script src="api.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,1 +1,0 @@
-EXPLAIN ANALYZE SELECT * FROM orders WHERE request_id = 1042;

@@ -27,6 +27,8 @@ FlashLock demonstrates how concurrent flash-sale traffic behaves across three ge
 sudo service postgresql start
 sudo -u postgres psql -d flashlock -f db/schema.sql
 sudo -u postgres psql -d flashlock -f db/seed.sql
+
+psql -h localhost -U postgres -d flashlock -c "SELECT * FROM orders;"
 ```
 
 ### 2. Compile & Start C Engine (Terminal 1)
